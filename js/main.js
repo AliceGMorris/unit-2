@@ -1,6 +1,7 @@
 //declare map variable globally so all functions have access
 var map;
 var minValue;
+var dataStats = {};
 
 //step 1 create map
 function createMap(){
@@ -56,7 +57,7 @@ function pointToLayer(feature, latlng, attributes){
 	 var attribute = attributes[0];
 	 
 	 //check
-	 console.log(attribute);
+	 //console.log(attribute);
 	 
 	 //create marker options
 	 var options = {
@@ -77,17 +78,11 @@ function pointToLayer(feature, latlng, attributes){
 	 
 	 //Example 3.18 line 4
 	 
-	//build popup content string starting with city...Example 2.1 line 24
-	var popupContent = "<p><b>State:</b> " + feature.properties.State + "</p>";
-		 
-	//add formatted attribute to popup content string
-	var mines = attribute.split("_")[1];
-	popupContent += "<p><b>Number of mines in " + mines + ":</b> " + feature.properties[attribute] + " </p>";
+	//build popup content string starting with state...Example 2.1 line 24
+	var popupContent = createPopupContent(feature.properties, attribute);
 	
-	 //bind the popup to the circle marker
-	 layer.bindPopup(popupContent, {
-		offset: new L.Point(0,-options.radius) 
-	 });
+	//bind the popup to the circle marker 
+	layer.bindPopup(popupContent, { offset: new L.Point(0,-options.radius) });
 	 
 	 //return the circle marker to the L.geoJson pointToLayer option
 	 return layer;
@@ -104,24 +99,39 @@ function createPropSymbols(data, attributes){
 };
 
 function createSequenceControls(attributes){
-	 //create range input element (slider)
-	 var slider = "<input class='range-slider' type='range'></input>";
-	 document.querySelector("#panel").insertAdjacentHTML('beforeend',slider);
-	 
-	 //set slider attributes
-	 document.querySelector(".range-slider").max = 8;
-	 document.querySelector(".range-slider").min = 0;
-	 document.querySelector(".range-slider").value = 0;
-	 document.querySelector(".range-slider").step = 1;
-	 
-	 document.querySelector('#panel').insertAdjacentHTML('beforeend','<button class="step" id="reverse">Reverse</button>');
-	 document.querySelector('#panel').insertAdjacentHTML('beforeend','<button class="step" id="forward">Forward</button>');
-	 
-	 //replace button content with images
-	 document.querySelector('#reverse').insertAdjacentHTML('beforeend',"<img src='img/reverse.png'>")
-	 document.querySelector('#forward').insertAdjacentHTML('beforeend',"<img src='img/forward.png'>")
-	 
-	 document.querySelectorAll('.step').forEach(function(step){
+	
+	var SequenceControl = L.Control.extend({
+		options: {
+			position: 'bottomleft'
+		},
+		
+		onAdd: function () {
+			// create the control container div with a particular class name
+			var container = L.DomUtil.create('div', 'sequence-control-container');
+			
+			//create range input element (slider)
+			container.insertAdjacentHTML('beforeend', '<input class="range-slider" type="range">')
+			
+			//add skip buttons
+			container.insertAdjacentHTML('beforeend', '<button class="step" id="reverse" title="Reverse"><img src="img/reverse.png"></button>'); 
+			container.insertAdjacentHTML('beforeend', '<button class="step" id="forward" title="Forward"><img src="img/forward.png"></button>');
+			
+			//disable any mouse event listeners for the container
+			L.DomEvent.disableClickPropagation(container);
+			
+			return container;
+		}
+	});
+	
+	map.addControl(new SequenceControl());
+	
+	//set slider attributes
+	document.querySelector(".range-slider").max = 8;
+	document.querySelector(".range-slider").min = 0;
+	document.querySelector(".range-slider").value = 0;
+	document.querySelector(".range-slider").step = 1;
+	
+	document.querySelectorAll('.step').forEach(function(step){
 		 step.addEventListener("click", function(){
 			//sequence
 			var index = document.querySelector('.range-slider').value;
@@ -148,7 +158,76 @@ function createSequenceControls(attributes){
 		//console.log(index)
 		updatePropSymbols(attributes[index]);
 	 });
+}
+
+function createLegend(attribute){
+	var LegendControl = L.Control.extend({
+		options: {
+			position: 'bottomright'
+			},
+			
+		onAdd: function () {
+			// create the control container with a particular class name
+			var container = L.DomUtil.create('div', 'legend-control-container');
+		
+			container.innerHTML = '<p class="temporalLegend">Number of mines in <span class="year">2007</span></p>';
+			
+			//Step 1: start attribute legend svg string
+			var svg = '<svg id="attribute-legend" width="auto" height="90px">';
+			
+			//array of circle names to base loop on
+			var circles = ["max", "mean", "min"];
+			
+			//Step 2: loop to add each circle and text to svg string
+			for (var i=0; i<circles.length; i++){
+				
+				//Step 3: assign the r and cy attributes 
+				var radius = calcPropRadius(dataStats[circles[i]]); 
+				var cy = 90 - radius;
+				
+				//circle string
+				svg += '<circle class="legend-circle" id="' + circles[i] + '" r="' + radius + '"cy="' + cy + '" fill="#F47821" fill-opacity="0.8" stroke="#000000" cx="50"/>';
+				
+				//evenly space out labels 
+				var textY = i * 20 + 47; 
+				//text string 
+				svg += '<text id="' + circles[i] + '-text" x="95" y="' + textY + '">' + Math.round(dataStats[circles[i]]*100)/100 + " mines" + '</text>';
+			};
+ 
+			//close svg string
+			svg += "</svg>";
+			
+			//add attribute legend svg to container
+			container.insertAdjacentHTML('beforeend',svg);
+			
+			return container;
+		}
+	});
+	
+	map.addControl(new LegendControl());
 };
+
+function calcStats(data){
+	//create empty array to store all data values
+	var allValues = [];
+	//loop through each mines
+	for(var mines of data.features){
+		//loop through each year
+		for(var year = 2007; year <= 2015; year+=1){
+			//get population for current year
+			var value = mines.properties["Mine_"+ String(year)];
+			//add value to array
+			allValues.push(value);
+		}
+	}
+	//get min, max, mean stats for our array
+	dataStats.min = Math.min(...allValues);
+	dataStats.max = Math.max(...allValues);
+	
+	//calculate meanValue
+	var sum = allValues.reduce(function(a, b){return a+b;});
+	dataStats.mean = sum/ allValues.length;
+}
 
 function processData(data){
 	 //empty array to hold attributes
@@ -172,6 +251,9 @@ function processData(data){
 };
 
 function updatePropSymbols(attribute){
+	var year = attribute.split("_")[1];
+	//update temporal legend
+	document.querySelector("span.year").innerHTML = year;
 	 map.eachLayer(function(layer){
 		if (layer.feature && layer.feature.properties[attribute]){
 			//update the layer style and popup
@@ -182,18 +264,29 @@ function updatePropSymbols(attribute){
 			 layer.setRadius(radius);
 		 
 		 
-			 //build popup content string starting with city...Example 2.1 line 24
-			 var popupContent = "<p><b>State:</b> " + props.State + "</p>";
+			 //build popup content string starting with state...Example 2.1 line 24
+			 var popupContent = createPopupContent(props, attribute);
 			 
-			 //add formatted attribute to popup content string
-			 var mines = attribute.split("_")[1];
-			 popupContent += "<p><b>Number of mines in " + mines + ":</b> " + props[attribute] + " </p>";
+			 //update popup with new content 
+			 popup = layer.getPopup(); 
+			 popup.setContent(popupContent).update();
 		
 			//update popup content 
 			 popup = layer.getPopup(); 
 			 popup.setContent(popupContent).update();
 		};
 	 });
+};
+
+function createPopupContent(properties, attribute){
+	 //add state to popup content string
+	 var popupContent = "<p><b>State:</b> " + properties.State + "</p>";
+	 
+	 //add formatted attribute to panel content string
+	 var year = attribute.split("_")[1];
+	 popupContent += "<p><b>Number of mines in " + year + ":</b> " + properties[attribute] + " </p>";
+	 
+	 return popupContent;
 };
 
 //Step 2: Import GeoJSON data
@@ -207,11 +300,17 @@ function getData(){
 			//create an attributes array
 			var attributes = processData(json);
 			
+			calcStats(json);
+			
             //calculate minimum data value
             minValue = calculateMinValue(json);
             //call function to create proportional symbols
             createPropSymbols(json, attributes);
+			
 			createSequenceControls(attributes);
+			
+			createLegend(attributes);
+		
         })
 };
 
