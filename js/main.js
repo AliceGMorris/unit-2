@@ -6,17 +6,35 @@ var dataStats = {};
 //step 1 create map
 function createMap(){
 
+	var USGS = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
+			 maxZoom: 20,
+			 attribution: 'Tiles courtesy of the <a href="https://usgs.gov/">U.S. Geological Survey</a>'
+		});
+		
+	var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		maxZoom: 20,
+		attribution: '© OpenStreetMap'
+	});
+	
+	var USGS_USImageryTopo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}', {
+		maxZoom: 20,
+		attribution: 'Tiles courtesy of the <a href="https://usgs.gov/">U.S. Geological Survey</a>'
+	});
+
+	var baseMaps = {
+		"National Map": USGS,
+		"USGS Topo" : USGS_USImageryTopo,
+		"OpenStreetMap": osm
+	};
+
     //create the map
     map = L.map('map', {
 		 center: [38, -95],
-		 zoom: 5
+		 zoom: 5,
+		 layers: [USGS]
     });
 
-    //add OSM base tilelayer
-    L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
-		 maxZoom: 20,
-		 attribution: 'Tiles courtesy of the <a href="https://usgs.gov/">U.S. Geological Survey</a>'
-    }).addTo(map);
+	var layerControl = L.control.layers(baseMaps).addTo(map);
 
     //call getData function
     getData(map);
@@ -61,8 +79,8 @@ function pointToLayer(feature, latlng, attributes){
 	 
 	 //create marker options
 	 var options = {
-		 fillColor: "#ff7800",
-		 color: "#000",
+		 fillColor: "#00cc00",
+		 color: "#000000",
 		 weight: 1,
 		 opacity: 1,
 		 fillOpacity: 0.8
@@ -186,7 +204,7 @@ function createLegend(attribute){
 				var cy = 90 - radius;
 				
 				//circle string
-				svg += '<circle class="legend-circle" id="' + circles[i] + '" r="' + radius + '"cy="' + cy + '" fill="#F47821" fill-opacity="0.8" stroke="#000000" cx="50"/>';
+				svg += '<circle class="legend-circle" id="' + circles[i] + '" r="' + radius + '"cy="' + cy + '" fill="#00cc00" fill-opacity="0.8" stroke="#000000" cx="50"/>';
 				
 				//evenly space out labels 
 				var textY = i * 20 + 47; 
